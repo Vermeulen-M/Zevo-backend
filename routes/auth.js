@@ -8,26 +8,21 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 
-// Router = mini serveur pour les routes d'auth
 const router = express.Router();
 
 // ============================================
 // POST /auth/inscription
-// Créer un nouveau compte utilisateur
 // ============================================
 router.post('/inscription', async (req, res) => {
     try {
-        // Récupérer les données envoyées par l'app mobile
         const { nom, email, telephone, mot_de_passe } = req.body;
 
-        // Vérifier que les champs obligatoires sont présents
         if (!nom || !mot_de_passe || (!email && !telephone)) {
             return res.status(400).json({ 
                 erreur: 'Nom, mot de passe et email ou téléphone sont obligatoires' 
             });
         }
 
-        // Vérifier si l'utilisateur existe déjà
         const existeDeja = await pool.query(
             'SELECT id FROM users WHERE email = $1 OR telephone = $2',
             [email, telephone]
@@ -39,11 +34,8 @@ router.post('/inscription', async (req, res) => {
             });
         }
 
-        // Chiffrer le mot de passe — jamais stocker en clair !
-        // '10' = niveau de complexité du chiffrement
         const motDePasseChiffre = await bcrypt.hash(mot_de_passe, 10);
 
-        // Créer l'utilisateur dans la base de données
         const nouvelUser = await pool.query(
             `INSERT INTO users (nom, email, telephone, mot_de_passe) 
              VALUES ($1, $2, $3, $4) 
@@ -53,14 +45,12 @@ router.post('/inscription', async (req, res) => {
 
         const user = nouvelUser.rows[0];
 
-        // Créer un token JWT — permet à l'app de rester connectée
         const token = jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' } // token valide 7 jours
+            { expiresIn: '7d' }
         );
 
-        // Répondre avec le token et les infos de l'utilisateur
         res.status(201).json({
             message: 'Compte créé avec succès',
             token,
@@ -80,7 +70,6 @@ router.post('/inscription', async (req, res) => {
 
 // ============================================
 // POST /auth/connexion
-// Connecter un utilisateur existant
 // ============================================
 router.post('/connexion', async (req, res) => {
     try {
@@ -92,7 +81,6 @@ router.post('/connexion', async (req, res) => {
             });
         }
 
-        // Chercher l'utilisateur par email OU téléphone
         const result = await pool.query(
             'SELECT * FROM users WHERE email = $1 OR telephone = $1',
             [identifiant]
@@ -106,7 +94,6 @@ router.post('/connexion', async (req, res) => {
 
         const user = result.rows[0];
 
-        // Vérifier le mot de passe
         const motDePasseValide = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
 
         if (!motDePasseValide) {
@@ -115,7 +102,6 @@ router.post('/connexion', async (req, res) => {
             });
         }
 
-        // Créer le token JWT
         const token = jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET,
@@ -135,6 +121,66 @@ router.post('/connexion', async (req, res) => {
 
     } catch (erreur) {
         console.error('Erreur connexion:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
+// ============================================
+// POST /auth/pin/creer
+// ============================================
+router.post('/pin/creer', async (req, res) => {
+    try {
+        const { user_id, pin } = req.body;
+
+        if (!pin || pin.length !== 6) {
+            return res.status(400).json({ erreur: 'Le PIN doit contenir 6 chiffres' });
+        }
+
+        const pinChiffre = await bcrypt.hash(pin, 10);
+
+        await pool.query(
+            'UPDATE users SET pin = $1 WHERE id = $2',
+            [pinChiffre, user_id]
+        );
+
+        res.json({ message: 'PIN créé avec succès' });
+
+    } catch (erreur) {
+        console.error('Erreur création PIN:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
+// ============================================
+// POST /auth/pin/verifier
+// ============================================
+router.post('/pin/verifier', async (req, res) => {
+    try {
+        const { user_id, pin } = req.body;
+
+        const result = await pool.query(
+            'SELECT pin FROM users WHERE id = $1',
+            [user_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ erreur: 'Utilisateur non trouvé' });
+        }
+
+        if (!result.rows[0].pin) {
+            return res.status(400).json({ erreur: 'Aucun PIN défini' });
+        }
+
+        const pinValide = await bcrypt.compare(pin, result.rows[0].pin);
+
+        if (!pinValide) {
+            return res.status(401).json({ erreur: 'PIN incorrect' });
+        }
+
+        res.json({ message: 'PIN correct' });
+
+    } catch (erreur) {
+        console.error('Erreur vérification PIN:', erreur.message);
         res.status(500).json({ erreur: 'Erreur serveur' });
     }
 });
