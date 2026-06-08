@@ -22,6 +22,8 @@ const pool = require('./db');
 // Routes
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
+const walletRoutes = require('./routes/wallets');
+app.use('/wallets', walletRoutes);
 
 // Route de test
 app.get('/health', (req, res) => {
