@@ -24,6 +24,10 @@ const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 const walletRoutes = require('./routes/wallets');
 app.use('/wallets', walletRoutes);
+const transactionRoutes = require('./routes/transactions');
+app.use('/transactions', transactionRoutes);
+const mpesaRoutes = require('./routes/mpesa');
+app.use('/mpesa', mpesaRoutes);
 
 // Route de test
 app.get('/health', (req, res) => {
