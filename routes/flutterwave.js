@@ -1,0 +1,144 @@
+// ============================================
+// ZEVO — routes/flutterwave.js
+// Intégration Flutterwave API
+// ============================================
+
+const express = require('express');
+const router = express.Router();
+const pool = require('../db');
+const Flutterwave = require('flutterwave-node-v3');
+
+const flw = new Flutterwave(
+    process.env.FLUTTERWAVE_PUBLIC_KEY,
+    process.env.FLUTTERWAVE_SECRET_KEY
+);
+
+// ============================================
+// POST /flutterwave/mobile-money
+// Paiement via Mobile Money (Orange, MTN...)
+// ============================================
+router.post('/mobile-money', async (req, res) => {
+    try {
+        const { telephone, montant, reseau, user_id, reference } = req.body;
+
+        if (!telephone || !montant || !reseau) {
+            return res.status(400).json({ erreur: 'Champs obligatoires manquants' });
+        }
+
+        const payload = {
+            phone_number: telephone,
+            amount: montant,
+            currency: 'XOF',
+            network: reseau, // ORANGE, MTN, MOOV
+            email: 'user@zevo.app',
+            tx_ref: reference || `ZEVO-${Date.now()}`,
+        };
+
+        const response = await flw.MobileMoney.franco_phone(payload);
+
+        if (response.status === 'success') {
+            res.json({
+                succes: true,
+                message: 'Paiement initié',
+                data: response.data,
+            });
+        } else {
+            res.status(400).json({
+                succes: false,
+                erreur: response.message || 'Erreur Flutterwave',
+            });
+        }
+
+    } catch (erreur) {
+        console.error('Erreur Flutterwave mobile money:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
+// ============================================
+// POST /flutterwave/transfert
+// Transfert vers un numéro mobile money
+// ============================================
+router.post('/transfert', async (req, res) => {
+    try {
+        const { telephone, montant, reseau, reference } = req.body;
+
+        const payload = {
+            account_bank: reseau,
+            account_number: telephone,
+            amount: montant,
+            narration: 'Transfert Zevo',
+            currency: 'XOF',
+            reference: reference || `ZEVO-${Date.now()}`,
+            callback_url: 'https://zevo.app/flutterwave/callback',
+        };
+
+        const response = await flw.Transfer.initiate(payload);
+
+        if (response.status === 'success') {
+            res.json({
+                succes: true,
+                message: 'Transfert initié',
+                data: response.data,
+            });
+        } else {
+            res.status(400).json({
+                succes: false,
+                erreur: response.message,
+            });
+        }
+
+    } catch (erreur) {
+        console.error('Erreur transfert Flutterwave:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
+// ============================================
+// POST /flutterwave/callback
+// Recevoir les confirmations Flutterwave
+// ============================================
+router.post('/callback', async (req, res) => {
+    try {
+        const { status, tx_ref, amount, currency } = req.body;
+
+        if (status === 'successful') {
+            await pool.query(
+                `INSERT INTO transactions 
+                 (montant, devise, type, statut, reference_externe, description)
+                 VALUES ($1, $2, 'flutterwave', 'complete', $3, $4)`,
+                [amount, currency, tx_ref, `Paiement Flutterwave ${tx_ref}`]
+            );
+            console.log('Transaction Flutterwave enregistrée:', tx_ref);
+        }
+
+        res.json({ status: 'ok' });
+
+    } catch (erreur) {
+        console.error('Erreur callback Flutterwave:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+   
+});
+// ============================================
+// GET /flutterwave/banques/:pays
+// Liste des banques disponibles par pays
+// ============================================
+router.get('/banques/:pays', async (req, res) => {
+    try {
+        const { pays } = req.params;
+        const response = await flw.Bank.country({ country: pays });
+
+        res.json({
+            succes: true,
+            banques: response.data,
+        });
+
+    } catch (erreur) {
+        console.error('Erreur liste banques:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
+module.exports = router;
+//

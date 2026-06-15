@@ -10,9 +10,10 @@ const pool = require('../db');
 
 // Générer le token d'authentification M-Pesa
 async function getToken() {
-    const auth = Buffer.from(
-        `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`
-    ).toString('base64');
+    const consumerKey = process.env.MPESA_CONSUMER_KEY || 'f08LAgF4rZSrJoV5PKqFQqyxmR98dlHoemJ6ELkW446NoIeO';
+    const consumerSecret = process.env.MPESA_CONSUMER_SECRET || 'PBBa7Ne1GO92icGAbOmGMtO0hXUDisLrI5MVevilyCVgaFzdS24NiG1mAlfyhyI8';
+    
+    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
     const response = await fetch(
         'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
