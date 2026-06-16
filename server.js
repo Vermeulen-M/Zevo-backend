@@ -8,6 +8,8 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+require('./firebase');
+
 const app = express();
 
 app.use(cors());
