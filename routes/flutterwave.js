@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const { envoyerNotification } = require('../firebase');
 const Flutterwave = require('flutterwave-node-v3');
 
 const flw = new Flutterwave(
@@ -110,6 +111,19 @@ router.post('/callback', async (req, res) => {
                 [amount, currency, tx_ref, `Paiement Flutterwave ${tx_ref}`]
             );
             console.log('Transaction Flutterwave enregistrée:', tx_ref);
+            // Envoyer notification
+const userFlw = await pool.query(
+    'SELECT fcm_token, nom FROM users WHERE id = (SELECT user_id FROM wallets WHERE id = $1 LIMIT 1)',
+    [tx_ref]
+);
+if (userFlw.rows[0]?.fcm_token) {
+    await envoyerNotification(
+        userFlw.rows[0].fcm_token,
+        '💸 Argent reçu !',
+        `Vous avez reçu ${amount} ${currency}`,
+        { type: 'transaction' }
+    );
+}
         }
 
         res.json({ status: 'ok' });
