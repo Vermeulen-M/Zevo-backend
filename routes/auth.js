@@ -184,5 +184,33 @@ router.post('/pin/verifier', async (req, res) => {
         res.status(500).json({ erreur: 'Erreur serveur' });
     }
 });
+// ============================================
+// GET /auth/chercher/:telephone
+// Rechercher un utilisateur par téléphone
+// ============================================
+router.get('/chercher/:telephone', async (req, res) => {
+    try {
+        const { telephone } = req.params;
 
+        const result = await pool.query(
+            'SELECT id, nom, telephone FROM users WHERE telephone = $1',
+            [telephone]
+        );
+
+        if (result.rows.length > 0) {
+            res.json({
+                trouve: true,
+                user: result.rows[0],
+            });
+        } else {
+            res.json({
+                trouve: false,
+            });
+        }
+
+    } catch (erreur) {
+        console.error('Erreur recherche utilisateur:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
 module.exports = router;
