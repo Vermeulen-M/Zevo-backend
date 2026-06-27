@@ -15,7 +15,7 @@ const router = express.Router();
 // ============================================
 router.post('/inscription', async (req, res) => {
     try {
-        const { nom, email, telephone, mot_de_passe } = req.body;
+        const { nom, email, telephone, mot_de_passe, calling_code } = req.body;
 
         if (!nom || !mot_de_passe || (!email && !telephone)) {
             return res.status(400).json({ 
@@ -37,10 +37,10 @@ router.post('/inscription', async (req, res) => {
         const motDePasseChiffre = await bcrypt.hash(mot_de_passe, 10);
 
         const nouvelUser = await pool.query(
-            `INSERT INTO users (nom, email, telephone, mot_de_passe) 
-             VALUES ($1, $2, $3, $4) 
-             RETURNING id, nom, email, telephone`,
-            [nom, email, telephone, motDePasseChiffre]
+            `INSERT INTO users (nom, email, telephone, mot_de_passe, calling_code) 
+             VALUES ($1, $2, $3, $4, $5) 
+             RETURNING id, nom, email, telephone, calling_code`,
+            [nom, email, telephone, motDePasseChiffre, calling_code || '225']
         );
 
         const user = nouvelUser.rows[0];
@@ -59,6 +59,7 @@ router.post('/inscription', async (req, res) => {
                 nom: user.nom,
                 email: user.email,
                 telephone: user.telephone,
+                calling_code: user.calling_code,
             }
         });
 
