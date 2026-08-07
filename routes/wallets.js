@@ -90,4 +90,20 @@ router.put('/defaut', async (req, res) => {
     }
 });
 
+// ============================================
+// GET /wallets/types
+// Récupérer les types de wallets disponibles
+// ============================================
+router.get('/types', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM types_wallets WHERE actif = true ORDER BY id'
+        );
+        res.json({ succes: true, types: result.rows });
+    } catch (erreur) {
+        console.error('Erreur types wallets:', erreur.message);
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
+
 module.exports = router;
