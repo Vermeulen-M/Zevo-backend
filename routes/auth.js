@@ -214,4 +214,15 @@ router.get('/chercher/:telephone', async (req, res) => {
         res.status(500).json({ erreur: 'Erreur serveur' });
     }
 });
+
+// PUT /auth/modifier-profil
+router.put('/modifier-profil', async (req, res) => {
+    try {
+        const { user_id, nom } = req.body;
+        await pool.query('UPDATE users SET nom = $1 WHERE id = $2', [nom, user_id]);
+        res.json({ succes: true });
+    } catch (erreur) {
+        res.status(500).json({ erreur: 'Erreur serveur' });
+    }
+});
 module.exports = router;
