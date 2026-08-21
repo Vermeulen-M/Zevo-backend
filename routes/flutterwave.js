@@ -26,11 +26,15 @@ router.post('/mobile-money', async (req, res) => {
             return res.status(400).json({ erreur: 'Champs obligatoires manquants' });
         }
 
+        // Calcul des frais Zevo (0.3% local, minimum 50 XOF)
+        const frais = Math.max(Math.round(montant * 0.003), 50);
+        const montantNet = montant - frais;
+
         const payload = {
             phone_number: telephone,
             amount: montant,
             currency: 'XOF',
-            network: reseau, // ORANGE, MTN, MOOV
+            network: reseau,
             email: 'user@zevo.app',
             tx_ref: reference || `ZEVO-${Date.now()}`,
         };
@@ -38,9 +42,27 @@ router.post('/mobile-money', async (req, res) => {
         const response = await flw.MobileMoney.franco_phone(payload);
 
         if (response.status === 'success') {
+            
+            // Enregistrer la transaction avec les frais
+            await pool.query(
+                `INSERT INTO transactions 
+                (expediteur_id, montant, devise, type, statut, frais, description, reference_externe)
+                VALUES ($1, $2, 'XOF', 'mobile_money', 'en_attente', $3, $4, $5)`,
+                [user_id, montantNet, frais, `Transfert vers ${telephone}`, reference || `ZEVO-${Date.now()}`]
+            );
+
+            // Créditer le wallet central Zevo avec les frais
+            await pool.query(
+                `UPDATE wallets SET solde = solde + $1 
+                WHERE user_id = (SELECT id FROM users WHERE email = 'system@zevo.app')`,
+                [frais]
+            );
+
             res.json({
                 succes: true,
                 message: 'Paiement initié',
+                montant_net: montantNet,
+                frais: frais,
                 data: response.data,
             });
         } else {
@@ -55,7 +77,6 @@ router.post('/mobile-money', async (req, res) => {
         res.status(500).json({ erreur: 'Erreur serveur' });
     }
 });
-
 // ============================================
 // POST /flutterwave/transfert
 // Transfert vers un numéro mobile money
